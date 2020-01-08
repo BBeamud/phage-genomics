@@ -1,16 +1,37 @@
+#!/usr/bin/env Rscript
+# This script compares three phage annotation programs and returns a Venn diagram and a summary of the ORFs
+# Briefly, an ORF was called if at least two of the algorithms agreed or if it was called only by PHANOTATE
+# with a score ≤ -3. Prodigal was prioritized over Glimmer and PHASTER to assign start and end coordinates. 
+# Author: Beatriz Beamud Aranguren (beatriz.beamud@uv.es) 
+# Usage: Rscript --vanilla -p prokka.gff3 -g glimmer.txt -n phanotate.txt -o output
 library(ape)
 library(compare)
 library(data.table)
 library(VennDiagram)
-setwd("~/Documentos/proyectos/fpu_resistencias/secuencias/phages/from_fastq_Justine/3.4_Annot_comp/")
-comp=read.csv("4_1_comp.csv", header = T, dec=',')
+library(ggplot2)
+library(optparse)
 
+# INPUT
+option_list = list(
+  make_option(c("-p", "--gff3"), type="character", default=NULL, 
+              help="GFF3 file produced by prokka", metavar="character"),
+  make_option(c("-g", "--glimmer"), type="character", default=NULL, 
+              help="Glimmer output eg provided by phaster", metavar="character"),
+  make_option(c("-n", "--phanotate"), type="character", default=NULL, 
+              help="PHANOTATE output", metavar="character"),
+  make_option(c("-o", "--output"), type="character", default='annot_comp', 
+              help="output prefix. A venn diagram and a CDS file  will be produced", metavar="character")
+); 
 
-prokka = read.gff("4-1.gff3")
+opt_parser = OptionParser(option_list=option_list);
+opt = parse_args(opt_parser);
+
+prokka = read.gff(opt$gff3[1])
+phaster = read.table(opt$glimmer[1], col.names = c("start", "end")) 
+phannot = read.table(opt$phanotate[1], col.names = c("start", "end", "frame", "contig", "score")) 
+output_name = opt$output[1]
 prokka = prokka[,c('start','end')]
-phannot = read.table("4-1_sc1_reordered_phanotate.out", col.names = c("start", "end", "frame", "contig", "score"))
 phannot = phannot[,c('start', 'end', 'score')]
-phaster = read.table("phaster_4.1", col.names = c("start", "end"))
 
 # We assume PHANNOTATE is the method that detect more CDS
 n_prokka = nrow(prokka)
@@ -41,6 +62,7 @@ comparison <- data.frame(PROKKA_ID=integer(), PROKKA_START=integer(), PROKKA_END
                          PHANNOTATE_START = integer(), PHANNOTATE_END=integer(), PHANNOTATE_SCORE =integer(), 
                          PHASTER_ID = integer(), PHASTER_START=integer(), PHASTER_END=integer()) 
 
+# We considered a difference of 75 pb to be sufficient to consider a different CDS 
 for (i in 1:nrow(phannot)){
   start = phannot$start[i]
   end = phannot$end[i]
@@ -161,13 +183,12 @@ n3=nrow(subset(comp, PROKKA_ID > 0 & is.na(PHANNOTATE_ID) & is.na(PHASTER_ID))) 
 n1=nrow(subset(comp, is.na(PROKKA_ID) & PHANNOTATE_ID > 0 & is.na(PHASTER_ID))) # UNIQ PHANNOTATE
 n2=nrow(subset(comp, is.na(PROKKA_ID) & PHANNOTATE_ID > 0 & PHASTER_ID>0)) # UNIQ PHASTHER
 
-#grid.newpage()
-#draw.triple.venn(area1 = max(phannot$id), area2 = max(phaster$id), area3 = max(prokka$id), n12 = n12, n23 = n23, n13 = n13, 
-#                 n123 = n123, category = c("PHANNOTATE", "GLIMMER", "PRODIGAL"), lty = "blank", 
-#                 fill = c("skyblue", "pink1", "mediumorchid"))
+grid.newpage()
+plot = draw.triple.venn(area1 = max(phannot$id), area2 = max(phaster$id), area3 = max(prokka$id), n12 = n12, n23 = n23, n13 = n13, 
+                 n123 = n123, category = c("PHANNOTATE", "GLIMMER", "PRODIGAL"), lty = "blank", 
+                 fill = c("skyblue", "pink1", "mediumorchid"))
 
-
-
+ggsave(filename=paste(output_name,"Venn.pdf", sep = '_'), plot=plot)
 
 for (i in 1:nrow(comp)) {
   prokka = (is.na(comp$PROKKA_ID[i]))
@@ -205,16 +226,16 @@ comp$end = 0
 
 
 for(i in three){
-  # We trust prokka and phaster vs phannotate 
+  # We trust prokka and phaster vs phannotate, respectively  
   equal = length(unique(c(comp$PHASTER_START[i], comp$PROKKA_START.[i]))) == 1 
   if (equal == T){
-    comp$start[i] = comp$PHASTER_START[i]
+    comp$start[i] = comp$PROKKA_START[i]
   } else {
     
   }
   equal = length(unique(c(comp$PHASTER_END[i], comp$PROKKA_END[i]))) == 1 
   if (equal == T){
-    comp$end[i] = comp$PHASTER_END[i]
+    comp$end[i] = comp$PROKKA_END[i]
   } else {
     
   }
@@ -244,4 +265,5 @@ summary=comp[comp$punct>=1.5,c("start", "end")]
 
 
 summary_sort = summary[order(summary$start, summary$end),]
-write.table(summary_sort, "summary_sort", row.names = F)
+output = paste(output_name, 'CDS.summary', sep='_')
+write.table(summary_sort, output, row.names = F)
