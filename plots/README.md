@@ -1,2 +1,7 @@
+Script to generate Fig. 3 of 10.3390/ijms21093160. 
 
-![caption Source: P.Domingo et al., 2020](https://www.mdpi.com/1422-0067/21/9/3160#metrics)
+![Fig. 3](Fig3v4.png)
+
+
+Domingo-Calap, P., Beamud, B., Mora-Quilis, L., González-Candelas, F., & Sanjuán, R. (2020). Isolation and Characterization of Two Klebsiella pneumoniae Phages Encoding Divergent Depolymerases. International journal of molecular sciences, 21(9), 3160.
+
